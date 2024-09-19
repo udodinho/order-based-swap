@@ -87,4 +87,42 @@ contract OrderBaseSwap {
             _amountDesired
         );
     }
+
+    function swapTokens(uint256 _orderID, uint256 _amount) external payable {
+        if (msg.sender == address(0)) {
+            revert AddressZeroDetected();
+        }
+
+        if (_amount <= 0) {
+            revert ZeroValueNotAllowed();
+        }
+
+        Order storage order = orders[_orderID];
+
+        if (!order.isActive) {
+            revert OrderIsNotActive();
+        }
+        
+        if (_amount > order.depositAmount) {
+            revert RequestedAmountExceedsAvailableToken();
+        }
+
+        uint256 total = (prices[order.depositToken][order.tokenDesired] * _amount) / 1e18;
+
+        if (msg.value < total) { 
+            revert InsufficientFunds();
+        }
+
+        payable(order.depositor).transfer(total);
+
+        order.depositAmount -= _amount;
+
+        IERC20(order.depositToken).transfer(msg.sender, _amount);
+
+        if (order.depositAmount == 0) {
+            order.isActive = false;
+        }
+
+        emit SwapSuccessful(msg.sender, order.depositToken, _amount, order.tokenDesired, total);
+    }
 }
